@@ -1,0 +1,128 @@
+C51 COMPILER V9.59.0.0   DS3231TIMEHELPER                                                  04/21/2024 13:20:42 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE DS3231TIMEHELPER
+OBJECT MODULE PLACED IN .\Obj\DS3231TimeHelper.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE DS3231TimeHelper.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\App\24c02;.\App\iic
+                    -;.\App\key;.\App\smg;.\Public;.\App\ds18b20;.\App\ds1302) DEBUG OBJECTEXTEND PRINT(.\Obj\DS3231TimeHelper.lst) TABS(2) O
+                    -BJECT(.\Obj\DS3231TimeHelper.obj)
+
+line level    source
+
+   1          /*
+   2          *******************************************************************************************
+   3          *
+   4          *                                   DS3231 TIME HELPER MODULE
+   5          *
+   6          * File : DS3231TimeHelper.c
+   7          * By   : Lin Shijun(https://blog.csdn.net/lin_strong)
+   8          * Date:  2019/09/26
+   9          * version: V1.0
+  10          * History: 
+  11          * note   : the convert interfaces for DS3231 time.
+  12          *********************************************************************************************
+  13          */
+  14          #include "DS3231TimeHelper.h"
+*** WARNING C318 IN LINE 17 OF DS3231TimeHelper.h: can't open file 'DS3231Driver.h'
+*** WARNING C318 IN LINE 18 OF DS3231TimeHelper.h: can't open file 'time.h'
+*** WARNING C318 IN LINE 19 OF DS3231TimeHelper.h: can't open file 'common.h'
+*** ERROR C141 IN LINE 24 OF DS3231TimeHelper.h: syntax error near '*', expected ')'
+*** ERROR C141 IN LINE 25 OF DS3231TimeHelper.h: syntax error near '*', expected ')'
+*** ERROR C129 IN LINE 26 OF DS3231TimeHelper.h: missing ';' before 'DS3231TimeValid'
+  15          #include <stdint.h>
+*** WARNING C318 IN LINE 15 OF DS3231TimeHelper.c: can't open file 'stdint.h'
+  16          
+  17          #pragma MESSAGE DISABLE C2705
+*** MESSAGE C286 IN LINE 17 OF DS3231TimeHelper.c: DISABLE
+  18          #pragma MESSAGE DISABLE C12056
+*** MESSAGE C286 IN LINE 18 OF DS3231TimeHelper.c: DISABLE
+  19          void DS3231TimeToSystemTime(struct tm *dst, const TIME_STRUCT *src){
+  20            uint16_t tmp;
+  21            const int16_t * mdays;
+  22            if(dst == NULL || src == NULL)
+  23              return;
+  24            dst->tm_sec = src->sec.sec_sd + src->sec.sec_td * 10;
+  25            dst->tm_min = src->min.min_sd + src->min.min_td * 10;
+  26            if(src->hour.SYS12.is12sys){
+  27              tmp = src->hour.SYS12.hour_sd + src->hour.SYS12.hour_td * 10;
+  28              tmp = (tmp == 12)? 0: tmp;    // 12:30 am = 00:30(24h);    12:30pm = 12:30(24h)
+  29              dst->tm_hour = (src->hour.SYS12.isPM)? tmp + 12: tmp;
+  30            }else{
+  31              dst->tm_hour = src->hour.SYS24.hour_sd + src->hour.SYS24.hour_td * 10;
+  32            }
+  33            dst->tm_mday = src->date.date_sd +  src->date.date_td * 10;
+  34            dst->tm_mon = src->cmon.mon_sd + src->cmon.mon_td * 10 - 1;
+  35            dst->tm_year = src->year.year_sd + src->year.year_td * 10 + (DS3231_BASEYEAR - 1900) + src->cmon.century
+             - * 100;
+  36            dst->tm_wday = src->day.day - 1;          // treat TIME_STRUCT.day 1 as Sunday
+  37            if(dst->tm_mon < 12){
+  38              tmp = dst->tm_year + 1900;
+  39              mdays = (IS_LEAP_YEAR(tmp))?TimeExt_lpdays: TimeExt_days;
+  40              dst->tm_yday = mdays[dst->tm_mon] + dst->tm_mday;
+  41            }
+  42            dst->tm_isdst = 0;
+  43            dst->tm_gmtoff = -1;
+C51 COMPILER V9.59.0.0   DS3231TIMEHELPER                                                  04/21/2024 13:20:42 PAGE 2   
+
+  44          }
+  45          
+  46          void SystemTimeToDS3231Time(TIME_STRUCT *dst, const struct tm *src){
+  47            uint16_t tmp;
+  48            if(dst == NULL || src == NULL)
+  49              return;
+  50            if(src->tm_year < (DS3231_BASEYEAR - 1900))
+  51              return;
+  52            dst->sec.sec_sd = src->tm_sec % 10;
+  53            dst->sec.sec_td = src->tm_sec / 10;
+  54            dst->min.min_sd = src->tm_min % 10;
+  55            dst->min.min_td = src->tm_min / 10;
+  56            dst->hour.SYS12.is12sys = 0;  // use 24 hours system
+  57            dst->hour.SYS24.hour_sd = src->tm_hour % 10;
+  58            dst->hour.SYS24.hour_td = src->tm_hour / 10;
+  59            dst->date.date_sd = src->tm_mday % 10;
+  60            dst->date.date_td = src->tm_mday / 10;
+  61            dst->day.day = src->tm_wday + 1;
+  62            tmp = src->tm_mon + 1;
+  63            dst->cmon.mon_sd = tmp % 10;
+  64            dst->cmon.mon_td = tmp / 10;
+  65            tmp = src->tm_year - (DS3231_BASEYEAR - 1900);
+  66            dst->cmon.century = tmp / 100 & 1;
+  67            dst->year.year_sd = tmp % 10;
+  68            tmp /= 10;
+  69            dst->year.year_td = tmp % 10;
+  70          }
+  71          
+  72          BOOL DS3231TimeValid(const TIME_STRUCT *time){
+  73            uint16_t tmp;
+  74            if(time == NULL)
+  75              return FALSE;
+  76            // BCD check(with some range check)
+  77            if(time->sec.sec_sd > 9 || time->sec.sec_td > 5 ||
+  78               time->min.min_sd > 9 || time->min.min_td > 5 ||
+  79               time->hour.SYS24.hour_sd > 9 ||
+  80               time->day.day == 0 ||
+  81               time->date.date_sd > 9 ||
+  82               time->cmon.mon_sd > 9 ||
+  83               time->year.year_sd > 9 || time->year.year_td > 9
+  84               )
+  85              return FALSE;
+  86            // range check
+  87            if(time->hour.SYS12.is12sys){
+  88              tmp = time->hour.SYS12.hour_sd + time->hour.SYS12.hour_td * 10;
+  89              if(tmp < 1 || tmp > 12)
+  90                return FALSE;
+  91            }else{
+  92              tmp = time->hour.SYS24.hour_sd + time->hour.SYS24.hour_td * 10;
+  93              if(tmp > 23)
+  94                return FALSE;
+  95            }
+  96            tmp = time->cmon.mon_sd + time->cmon.mon_td * 10;
+  97            if(tmp == 0 || tmp > 12)
+  98              return FALSE;
+  99            tmp = time->date.date_sd + time->date.date_td * 10;
+ 100            if(tmp == 0 || tmp > 31)  // ?????????????????
+ 101              return FALSE;
+ 102            return TRUE;
+ 103          }
+
+C51 COMPILATION COMPLETE.  4 WARNING(S),  3 ERROR(S)
